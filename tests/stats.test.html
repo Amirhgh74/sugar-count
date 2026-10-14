@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>stats.js tests — Sugar Count</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: ui-rounded, -apple-system, system-ui, sans-serif; background: #F4FBF6; color: #1F5E3B;
+         margin: 0; padding: 20px; line-height: 1.45; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  #summary { font-weight: 800; margin: 12px 0 16px; padding: 12px 14px; border-radius: 14px; background: #DDF3E5; }
+  #summary.fail { background: #FADDE2; color: #8A2B40; }
+  ol { margin: 0; padding-left: 22px; }
+  li { padding: 2px 0; font-size: 14px; }
+  li.pass::marker { color: #4DB57A; }
+  li.fail { color: #8A2B40; font-weight: 700; }
+  code { background: rgba(31,94,59,.08); padding: 1px 5px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<h1>stats.js tests</h1>
+<p>Open this file over <code>http://</code> (ES modules do not load from <code>file://</code>).</p>
+<div id="summary">Running…</div>
+<ol id="results"></ol>
+
+<script type="module">
+import * as S from '../stats.js';
+
+const results = document.getElementById('results');
+let pass = 0, fail = 0;
+
+function test(name, fn) {
+  const li = document.createElement('li');
+  try {
+    fn();
+    li.className = 'pass';
+    li.textContent = name;
+    pass++;
+  } catch (err) {
+    li.className = 'fail';
+    li.textContent = name + ' — ' + err.message;
+    fail++;
+  }
+  results.appendChild(li);
+}
+
+function eq(actual, expected, label) {
+  const a = JSON.stringify(actual), b = JSON.stringify(expected);
+  if (a !== b) throw new Error((label ? label + ': ' : '') + 'expected ' + b + ', got ' + a);
+}
+function ok(v, label) { if (!v) throw new Error((label || 'assertion') + ' was falsy'); }
+
+/* Fixtures: tracking starts 2026-10-01, "today" is 2026-10-14 (a Wednesday). */
+const START = '2026-10-01';
+const TODAY = '2026-10-14';
+const day = (date, sugar, simple, complex, note) =>
+  [date, { date, ateSugar: !!sugar, ateSimpleCarbs: !!simple, ateComplexCarbs: !!complex, note: note || '' }];
+
+const recs = new Map([
+  day('2026-10-02', 1, 0, 0),
+  day('2026-10-03', 1, 1, 0, 'birthday cake'),
+  day('2026-10-05', 0, 1, 0),
+  day('2026-10-07', 0, 0, 1),
+  day('2026-10-09', 0, 0, 0, 'just a note'),
+  day('2026-10-12', 0, 1, 1),
+  day('2026-09-28', 1, 1, 1, 'before start')
+]);
+
+/* ------------------------------ date helpers ----------------------------- */
+
+test('toDateStr uses the local calendar date', () => {
+  eq(S.toDateStr(new Date(2026, 0, 5)), '2026-01-05');
+  eq(S.toDateStr(new Date(2026, 11, 31, 23, 59)), '2026-12-31');
+});
+
+test('parseDateStr round-trips at local midnight', () => {
+  const d = S.parseDateStr('2026-10-14');
+  eq([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()], [2026, 9, 14, 0]);
+  eq(S.toDateStr(d), '2026-10-14');
+});
+
+test('isValidDateStr rejects junk and impossible dates', () => {
+  eq(S.isValidDateStr('2026-10-14'), true);
+  eq(S.isValidDateStr('2026-02-29'), false);   // 2026 is not a leap year
+  eq(S.isValidDateStr('2024-02-29'), true);
+  eq(S.isValidDateStr('2026-13-01'), false);
+  eq(S.isValidDateStr('2026-1-1'), false);
+  eq(S.isValidDateStr(''), false);
+  eq(S.isValidDateStr(null), false);
+});
+
+test('addDays crosses months, years and DST', () => {
+  eq(S.addDays('2026-10-31', 1), '2026-11-01');
+  eq(S.addDays('2026-01-01', -1), '2025-12-31');
+  eq(S.addDays('2026-03-07', 7), '2026-03-14');   // across US DST start
+  eq(S.addDays('2026-10-20', -30), '2026-09-20');
+});
+
+test('diffDays is DST-safe', () => {
+  eq(S.diffDays('2026-10-01', '2026-10-14'), 13);
+  eq(S.diffDays('2026-03-01', '2026-11-05'), 249);
+  eq(S.diffDays('2026-10-14', '2026-10-14'), 0);
+  eq(S.diffDays('2026-10-14', '2026-10-13'), -1);
+});
+
+test('startOfWeek is Monday-first', () => {
+  eq(S.startOfWeek('2026-10-14'), '2026-10-12');  // Wed -> Mon
+  eq(S.startOfWeek('2026-10-12'), '2026-10-12');  // Mon -> itself
+  eq(S.startOfWeek('2026-10-18'), '2026-10-12');  // Sun -> same Mon
+});
+
+test('month boundaries', () => {
+  eq(S.startOfMonth('2026-10-14'), '2026-10-01');
+  eq(S.endOfMonth('2026-10-01'), '2026-10-31');
+  eq(S.endOfMonth('2026-02-10'), '2026-02-28');
+  eq(S.endOfMonth('2024-02-10'), '2024-02-29');
+  eq(S.addMonths('2026-10-31', 1), '2026-11-01');
+  eq(S.addMonths('2026-01-15', -1), '2025-12-01');
+});
+
+test('formatting', () => {
+  eq(S.formatMonthYear('2026-10-14'), 'October 2026');
+  eq(S.formatDayTitle('2026-10-13'), 'Tuesday, Oct 13');
+});
+
+/* ------------------------------- editability ----------------------------- */
+
+test('every past day and today can be logged', () => {
+  eq(S.isEditable('2020-01-01', TODAY), true);
+  eq(S.isEditable('2026-09-28', TODAY), true);   // before the start date
+  eq(S.isEditable(TODAY, TODAY), true);
+});
+
+test('future days cannot be logged', () => {
+  eq(S.isEditable('2026-10-15', TODAY), false);
+  eq(S.isEditable('2027-01-01', TODAY), false);
+});
+
+/* -------------------------------- day state ------------------------------ */
+
+test('days before the start date show nothing and are not counted', () => {
+  const st = S.dayState('2026-09-28', recs, START, TODAY);
+  eq(st.kind, 'before');
+  eq(st.inRange, false);
+  eq([st.ateSugar, st.ateSimpleCarbs, st.ateComplexCarbs], [false, false, false]);
+});
+
+test('future days are neutral', () => {
+  eq(S.dayState('2026-10-15', recs, START, TODAY).kind, 'future');
+  eq(S.dayState('2026-10-15', recs, START, TODAY).inRange, false);
+});
+
+test('a day with no record is clean', () => {
+  const st = S.dayState('2026-10-08', recs, START, TODAY);
+  eq(st.kind, 'clean');
+  eq(st.isClean, true);
+  eq([st.ateSugar, st.ateSimpleCarbs, st.ateComplexCarbs, st.note], [false, false, false, '']);
+});
+
+test('each of the three flags reads back on its own', () => {
+  const sugar = S.dayState('2026-10-02', recs, START, TODAY);
+  eq([sugar.kind, sugar.ateSugar, sugar.ateSimpleCarbs, sugar.ateComplexCarbs], ['logged', true, false, false]);
+  const simple = S.dayState('2026-10-05', recs, START, TODAY);
+  eq([simple.ateSugar, simple.ateSimpleCarbs, simple.ateComplexCarbs], [false, true, false]);
+  const complex = S.dayState('2026-10-07', recs, START, TODAY);
+  eq([complex.ateSugar, complex.ateSimpleCarbs, complex.ateComplexCarbs], [false, false, true]);
+});
+
+test('flags combine', () => {
+  const st = S.dayState('2026-10-12', recs, START, TODAY);
+  eq([st.ateSugar, st.ateSimpleCarbs, st.ateComplexCarbs], [false, true, true]);
+  eq(st.isClean, false);
+});
+
+test('a note-only day is still clean but keeps its note', () => {
+  const st = S.dayState('2026-10-09', recs, START, TODAY);
+  eq(st.kind, 'clean');
+  eq(st.isClean, true);
+  eq(st.note, 'just a note');
+});
+
+test('dayState also accepts a plain object of records', () => {
+  const plain = { '2026-10-02': { date: '2026-10-02', ateSugar: true } };
+  eq(S.dayState('2026-10-02', plain, START, TODAY).ateSugar, true);
+  eq(S.dayState('2026-10-04', plain, START, TODAY).isClean, true);
+});
+
+/* ------------------------- legacy two-toggle data ------------------------ */
+
+test('migrateRecord turns an old ateCarbs day into simple carbs', () => {
+  eq(S.migrateRecord({ date: '2026-10-01', ateSugar: true, ateCarbs: true, note: 'x' }),
+     { date: '2026-10-01', ateSugar: true, ateSimpleCarbs: true, ateComplexCarbs: false, note: 'x' });
+});
+
+test('migrateRecord leaves new-model rows alone', () => {
+  eq(S.migrateRecord({ date: '2026-10-01', ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: true, ateCarbs: true }),
+     { date: '2026-10-01', ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: true, note: '' });
+});
+
+/* ------------------------------ range counting --------------------------- */
+
+test('countRange over the tracked part of October', () => {
+  const c = S.countRange('2026-10-01', '2026-10-31', recs, START, TODAY);
+  eq(c.days, 14, 'days');              // Oct 1..14, future days excluded
+  eq(c.sugarDays, 2);                  // Oct 2, 3
+  eq(c.simpleCarbDays, 3);             // Oct 3, 5, 12
+  eq(c.complexCarbDays, 2);            // Oct 7, 12
+  eq(c.carbDays, 4);                   // Oct 3, 5, 7, 12
+  eq(c.cleanDays, 9);                  // 14 - 5 logged days
+  eq(c.noteDays, 2);
+});
+
+test('countRange ignores days before the start date', () => {
+  const c = S.countRange('2026-09-01', '2026-09-30', recs, START, TODAY);
+  eq([c.days, c.sugarDays, c.simpleCarbDays, c.complexCarbDays, c.cleanDays], [0, 0, 0, 0, 0]);
+});
+
+test('countRange clamps a period that straddles the start date', () => {
+  const c = S.countRange('2026-09-28', '2026-10-04', recs, START, TODAY);
+  eq(c.days, 4);                       // Oct 1..4 only
+  eq(c.sugarDays, 2);
+  eq(c.simpleCarbDays, 1);
+  eq(c.complexCarbDays, 0);
+});
+
+test('countRange clamps a period that straddles today', () => {
+  const c = S.countRange('2026-10-12', '2026-10-18', recs, START, TODAY);
+  eq(c.days, 3);                       // Oct 12, 13, 14
+  eq(c.simpleCarbDays, 1);
+  eq(c.complexCarbDays, 1);
+  eq(c.sugarDays, 0);
+});
+
+test('countRange of a fully future period is empty', () => {
+  const c = S.countRange('2026-11-01', '2026-11-30', recs, START, TODAY);
+  eq([c.days, c.sugarDays, c.simpleCarbDays, c.complexCarbDays], [0, 0, 0, 0]);
+});
+
+/* --------------------------------- streaks ------------------------------- */
+
+test('a streak per flag counts back from today', () => {
+  eq(S.currentStreak('ateSugar', recs, START, TODAY), 11);          // last sugar Oct 3
+  eq(S.currentStreak('ateSimpleCarbs', recs, START, TODAY), 2);     // last simple Oct 12
+  eq(S.currentStreak('ateComplexCarbs', recs, START, TODAY), 2);    // last complex Oct 12
+});
+
+test('a streak is 0 when today itself is logged', () => {
+  const r = new Map(recs);
+  r.set(TODAY, { date: TODAY, ateSugar: true, ateSimpleCarbs: false, ateComplexCarbs: false, note: '' });
+  eq(S.currentStreak('ateSugar', r, START, TODAY), 0);
+  eq(S.currentStreak('ateSimpleCarbs', r, START, TODAY), 2);
+});
+
+test('a streak never counts before the start date', () => {
+  eq(S.currentStreak('ateSugar', new Map(), '2026-10-10', TODAY), 5);  // Oct 10..14
+  eq(S.currentStreak('ateSugar', new Map(), TODAY, TODAY), 1);
+});
+
+test('a streak is 0 when the start date is in the future', () => {
+  eq(S.currentStreak('ateSugar', recs, '2026-10-20', TODAY), 0);
+});
+
+test('a record flagged false does not break a streak', () => {
+  const r = new Map([[TODAY, { date: TODAY, ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: false, note: 'hi' }]]);
+  eq(S.currentStreak('ateSugar', r, '2026-10-10', TODAY), 5);
+});
+
+/* -------------------------------- periods -------------------------------- */
+
+test('4 weeks = 4 Monday-first weekly periods ending this week', () => {
+  const p = S.buildPeriods('4w', TODAY);
+  eq(p.length, 4);
+  eq(p[0].start, '2026-09-21');
+  eq(p[3].start, '2026-10-12');
+  eq(p[3].end, '2026-10-18');
+  eq(p.map(x => x.label), ['Sep 21', 'Sep 28', 'Oct 5', 'Oct 12']);
+  for (const q of p) eq(S.diffDays(q.start, q.end), 6, 'week length');
+});
+
+test('3 months = 13 weekly periods', () => {
+  const p = S.buildPeriods('3m', TODAY);
+  eq(p.length, 13);
+  eq(p[12].start, '2026-10-12');
+  eq(p[0].start, '2026-07-20');
+});
+
+test('Year = 12 monthly periods ending this month', () => {
+  const p = S.buildPeriods('1y', TODAY);
+  eq(p.length, 12);
+  eq(p[0].start, '2025-11-01');
+  eq(p[11].start, '2026-10-01');
+  eq(p[11].end, '2026-10-31');
+  eq(p.map(x => x.label), ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct']);
+});
+
+test('summarize puts the right counts in the right weeks', () => {
+  const s = S.summarize('4w', recs, START, TODAY);
+  // weeks: Sep 21, Sep 28, Oct 5, Oct 12
+  eq(s.labels.length, 4);
+  eq(s.days, [0, 4, 7, 3]);            // the Sep 21 week is entirely before the start date
+  eq(s.sugar, [0, 2, 0, 0]);           // Oct 2 + Oct 3
+  eq(s.simpleCarbs, [0, 1, 1, 1]);     // Oct 3, Oct 5, Oct 12
+  eq(s.complexCarbs, [0, 0, 1, 1]);    // Oct 7, Oct 12
+});
+
+test('summarize totals and streaks match the tracked range', () => {
+  const s = S.summarize('1y', recs, START, TODAY);
+  eq(s.sugarDays, 2);
+  eq(s.simpleCarbDays, 3);
+  eq(s.complexCarbDays, 2);
+  eq(s.trackedDays, 14);
+  eq(s.rangeStart, START);             // clamped forward to the start date
+  eq(s.rangeEnd, TODAY);
+  eq(s.sugarFreeStreak, 11);
+  eq(s.simpleCarbFreeStreak, 2);
+  eq(s.complexCarbFreeStreak, 2);
+});
+
+test('summarize never counts outside the tracking range', () => {
+  const s = S.summarize('4w', recs, START, TODAY);
+  eq(s.days.reduce((a, b) => a + b, 0), 14);   // Oct 1..14 only
+  ok(s.sugar.every((v, i) => v <= s.days[i]), 'sugar <= days');
+  ok(s.simpleCarbs.every((v, i) => v <= s.days[i]), 'simple <= days');
+  ok(s.complexCarbs.every((v, i) => v <= s.days[i]), 'complex <= days');
+});
+
+/* ----------------------------- record handling --------------------------- */
+
+test('isEmptyRecord spots days worth deleting', () => {
+  eq(S.isEmptyRecord(null), true);
+  eq(S.isEmptyRecord({ ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: false, note: '' }), true);
+  eq(S.isEmptyRecord({ ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: false, note: '   ' }), true);
+  eq(S.isEmptyRecord({ ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: false, note: 'x' }), false);
+  eq(S.isEmptyRecord({ ateComplexCarbs: true, note: '' }), false);
+});
+
+test('normalizeRecord returns null for an empty day', () => {
+  eq(S.normalizeRecord('2026-10-14', {}, '  '), null);
+  eq(S.normalizeRecord('2026-10-14', { ateSugar: false, ateSimpleCarbs: false, ateComplexCarbs: false }, ''), null);
+});
+
+test('normalizeRecord keeps all three flags', () => {
+  eq(S.normalizeRecord('2026-10-14', { ateSugar: 1, ateComplexCarbs: 1 }, '  cake  '),
+     { date: '2026-10-14', ateSugar: true, ateSimpleCarbs: false, ateComplexCarbs: true, note: 'cake' });
+});
+
+test('normalizeRecord accepts a legacy ateCarbs flag', () => {
+  eq(S.normalizeRecord('2026-10-14', { ateCarbs: true }, ''),
+     { date: '2026-10-14', ateSugar: false, ateSimpleCarbs: true, ateComplexCarbs: false, note: '' });
+});
+
+test('normalizeRecord trims, coerces and caps the note at 100 chars', () => {
+  const long = S.normalizeRecord('2026-10-14', { ateSugar: true }, 'a'.repeat(250));
+  eq(long.note.length, 100);
+  eq(S.normalizeRecord('2026-10-14', { ateSugar: true }, null).note, '');
+});
+
+/* -------------------------------- month grid ----------------------------- */
+
+test('monthGrid is 42 Monday-first cells covering the month', () => {
+  const g = S.monthGrid('2026-10-14');
+  eq(g.length, 42);
+  eq(g[0], '2026-09-28');              // the Monday before Oct 1
+  eq(g[41], '2026-11-08');
+  ok(g.includes('2026-10-01') && g.includes('2026-10-31'), 'contains the whole month');
+  eq(S.parseDateStr(g[0]).getDay(), 1, 'starts on a Monday');
+});
+
+test('monthGrid handles a month starting on a Monday', () => {
+  const g = S.monthGrid('2026-06-10');   // June 1 2026 is a Monday
+  eq(g[0], '2026-06-01');
+  eq(g.length, 42);
+});
+
+/* --------------------------------- report -------------------------------- */
+
+const summary = document.getElementById('summary');
+summary.textContent = fail === 0
+  ? `All ${pass} tests passed 🌱`
+  : `${fail} of ${pass + fail} tests failed`;
+if (fail > 0) summary.className = 'fail';
+</script>
+</body>
+</html>

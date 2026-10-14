@@ -1,0 +1,133 @@
+# Sugar Count — Personal Web App (PWA) Spec
+
+## Overview
+Sugar Count is a personal web app for tracking which days I eat sugar and/or
+carbs. It is only for me. I will open it in Safari on my iPhone and use
+"Add to Home Screen", so it must behave like a native app: full-screen,
+works offline, and has its own icon. No accounts, no backend, no analytics,
+no network calls after the first load.
+
+Keep it simple: two screens, local storage only, cute UI in green and white.
+
+## Tech stack
+- Plain HTML, CSS, and vanilla JavaScript (ES modules). No framework, no build step.
+- Chart: Chart.js loaded from a pinned CDN version, OR vendored locally into
+  /vendor so the app works fully offline (preferred: vendored).
+- Storage: IndexedDB (small wrapper), with localStorage only for tiny settings.
+- PWA: manifest.webmanifest + service worker that caches all app files
+  (cache-first) so it opens with no internet.
+- Hosting: static files, deployable to GitHub Pages. Include a short README
+  with deploy steps and the "Add to Home Screen" steps on iPhone.
+
+## Files
+/index.html
+/styles.css
+/app.js            (routing between tabs, init)
+/db.js             (IndexedDB read/write/delete/export/import)
+/calendar.js       (calendar screen)
+/summary.js        (summary screen + chart)
+/stats.js          (pure functions: period counts, streaks — unit-testable)
+/sw.js             (service worker)
+/manifest.webmanifest
+/icons/apple-touch-icon.png (180x180)   <- already provided, do not regenerate
+/icons/icon-192.png, /icons/icon-512.png, /icons/icon.svg  <- already provided
+/tests/stats.test.html (simple in-browser tests for stats.js)
+
+## iOS home screen requirements
+In index.html <head>:
+- <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+- <meta name="apple-mobile-web-app-capable" content="yes">
+- <meta name="mobile-web-app-capable" content="yes">
+- <meta name="apple-mobile-web-app-status-bar-style" content="default">
+- <meta name="apple-mobile-web-app-title" content="Sugar Count">
+- <meta name="theme-color" content="#4DB57A">
+- <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+- <link rel="manifest" href="manifest.webmanifest">
+Manifest: name and short_name "Sugar Count", display "standalone",
+background_color "#F4FBF6", theme_color "#4DB57A", the 192 and 512 icons.
+Respect safe areas with env(safe-area-inset-*) so nothing sits under the
+notch or home indicator. Disable double-tap zoom and text selection on buttons.
+
+## Data model
+One record per calendar day, keyed by local date string "YYYY-MM-DD"
+(never store timezone-shifted timestamps):
+
+{ date: "2026-10-14", ateSugar: boolean, ateCarbs: boolean, note: string }
+
+Rules:
+- A day with NO record is a CLEAN day (no sugar, no carbs).
+- Only store a record when the day has sugar, carbs, or a note.
+  If I turn both toggles off and clear the note, delete the record.
+- Tracking start date: stored in settings, defaults to the date the app is
+  first opened. Days before the start date are not counted anywhere and
+  show as neutral (no indicator) on the calendar. I can change the start
+  date in a small settings sheet.
+- Future dates are not counted and cannot be edited.
+- Any past day from the start date up to today can be added or edited at any time.
+
+## Navigation
+Bottom tab bar with two tabs: "Calendar" and "Summary". Simple inline SVG
+icons. Active tab in primary green.
+
+## Screen 1: Calendar (main screen)
+- Month grid, Monday first. Header with month and year, prev/next buttons,
+  swipe left/right to change month, and a "Today" button.
+- Day cell indicators:
+  - Sugar eaten: pink dot
+  - Carbs eaten: amber dot
+  - Both: both dots
+  - Clean (no record, within tracking range, not in future): small green leaf
+  - Has a note: tiny underline or corner mark
+  - Before start date or in the future: dimmed, no indicator
+- Today has a green ring.
+- Tapping a day opens a bottom sheet:
+  - Title: formatted date, e.g. "Tuesday, Oct 14"
+  - Two big pill toggles: "Sugar" and "Carbs" (filled when on)
+  - One-line text input: "Add a note (optional)", max 100 characters
+  - "Save" button. "Reset to clean" button shown only if a record exists.
+  - Tapping outside or swiping down closes without saving.
+- Below the calendar: a small legend and a this-month line,
+  e.g. "Sugar 6 days, Carbs 11 days, Clean 9 days".
+- Small gear icon in the header opens settings: tracking start date,
+  Export data (downloads a JSON file), Import data (from that JSON file).
+
+## Screen 2: Summary
+- Segmented control: "4 weeks" | "3 months" | "Year"
+  - 4 weeks and 3 months: one point per week
+  - Year: one point per month
+- Line chart with two lines: sugar days per period and carb days per period.
+  Colors match the calendar dots, smooth curves (tension ~0.35), round point
+  markers, legend, Y axis starts at 0 with whole numbers only.
+  Partial periods (current week/month, or periods cut by the start date)
+  only count days inside the tracking range.
+- Under the chart, small rounded stat tiles:
+  - Sugar days in range
+  - Carb days in range
+  - Current sugar-free streak (consecutive days ending today with no sugar,
+    not going before the start date)
+  - Current carb-free streak
+- If the start date is today and nothing is logged, show a friendly empty
+  state: "Tap a day on the calendar to log it."
+
+## Visual design
+- Green and white. Background #F4FBF6, cards white, primary green #4DB57A,
+  dark green text #1F5E3B, light green fills #DDF3E5, sugar pink #F7A8B8,
+  carb amber #F2C46D.
+- Match the app icon's style: soft, rounded, friendly. Rounded corners
+  (sheets 24px, pills fully round, day cells 12px), very soft shadows.
+- Font: system rounded stack:
+  ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif.
+- Show the sugar-cube icon (icons/icon.svg) small in the calendar header.
+- Gentle motion only on user actions: sheet slides up, toggle pills
+  bounce slightly when tapped. Respect prefers-reduced-motion.
+- Support dark mode via prefers-color-scheme with a dark green/charcoal palette.
+- Tap targets at least 44px.
+
+## Done when
+- Opens from the home screen full-screen with the provided icon, no Safari UI.
+- Works with airplane mode on after the first load.
+- I can add and edit any past day since the start date, and unlogged days
+  show as clean.
+- Calendar and Summary update immediately after saving.
+- Data survives closing the app and restarting the phone.
+- Export/import round-trips my data correctly.

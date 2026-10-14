@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sugar Count</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Sugar Count">
+  <meta name="theme-color" content="#4DB57A">
+  <meta name="description" content="A tiny personal tracker for sugar, simple carb and complex carb days.">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============== Screen 1: Calendar ============== -->
+  <section class="screen" id="screen-calendar" aria-labelledby="cal-title">
+    <header class="topbar">
+      <img class="brand-icon" src="icons/icon.svg" alt="" width="30" height="30">
+      <div class="topbar-title">
+        <h1 id="cal-title">Sugar Count</h1>
+      </div>
+      <button class="icon-btn" id="btn-settings" type="button" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
+          <path fill="currentColor" d="M20.3 13.6a8.5 8.5 0 0 0 0-3.2l1.5-1.1a.75.75 0 0 0 .2-.96l-1.6-2.77a.75.75 0 0 0-.92-.32l-1.75.68a8.4 8.4 0 0 0-2.77-1.6l-.27-1.85A.75.75 0 0 0 14 2h-4a.75.75 0 0 0-.74.63L9 4.48a8.4 8.4 0 0 0-2.77 1.6L4.5 5.4a.75.75 0 0 0-.92.32L1.98 8.49a.75.75 0 0 0 .2.95l1.5 1.12a8.5 8.5 0 0 0 0 3.2l-1.5 1.11a.75.75 0 0 0-.2.96l1.6 2.77a.75.75 0 0 0 .92.32l1.75-.68a8.4 8.4 0 0 0 2.77 1.6l.27 1.85a.75.75 0 0 0 .74.63h4a.75.75 0 0 0 .74-.63l.27-1.85a8.4 8.4 0 0 0 2.77-1.6l1.75.68a.75.75 0 0 0 .92-.32l1.6-2.77a.75.75 0 0 0-.2-.96l-1.5-1.11Zm-1.6-2.98a7 7 0 0 1 0 2.76l-.12.6 1.74 1.3-.9 1.56-2.02-.79-.45.4a6.9 6.9 0 0 1-2.4 1.39l-.58.18-.31 2.13h-1.8l-.31-2.13-.58-.18a6.9 6.9 0 0 1-2.4-1.39l-.45-.4-2.02.79-.9-1.56 1.74-1.3-.12-.6a7 7 0 0 1 0-2.76l.12-.6-1.74-1.3.9-1.56 2.02.79.45-.4a6.9 6.9 0 0 1 2.4-1.39l.58-.18.31-2.13h1.8l.31 2.13.58.18a6.9 6.9 0 0 1 2.4 1.39l.45.4 2.02-.79.9 1.56-1.74 1.3.12.6Z"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="screen-body">
+      <div class="card month-card">
+        <div class="month-nav">
+          <button class="icon-btn" id="btn-prev-month" type="button" aria-label="Previous month">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M14.5 5 8 12l6.5 7"/></svg>
+          </button>
+          <h2 class="month-label" id="month-label" aria-live="polite">—</h2>
+          <button class="icon-btn" id="btn-next-month" type="button" aria-label="Next month">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 5 16 12l-6.5 7"/></svg>
+          </button>
+          <button class="pill-btn today-btn" id="btn-today" type="button">Today</button>
+        </div>
+
+        <div class="weekdays" aria-hidden="true">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="grid" id="day-grid" role="grid" aria-labelledby="month-label"></div>
+      </div>
+
+      <div class="card legend-card">
+        <ul class="legend">
+          <li><span class="dot dot-sugar"></span>Sugar</li>
+          <li><span class="dot dot-simple"></span>Simple carbs</li>
+          <li><span class="dot dot-complex"></span>Complex carbs</li>
+          <li>
+            <span class="leaf-chip" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.5 4.2c-7 0-12.6 3-13.8 8.6-.5 2.3.1 4.4 1.3 5.9l-2 2a1 1 0 1 0 1.4 1.4l2-2c1.6 1.2 3.8 1.7 6 1.1C19.7 20 22.4 11.6 19.5 4.2Zm-2 3.2c1.3 5.2-.8 10.7-4.1 11.6-1.4.4-2.7.2-3.7-.4l6.5-6.5a1 1 0 0 0-1.4-1.4l-6.5 6.5c-.6-1-.8-2.2-.5-3.6.8-3.7 5.6-6 9.7-6.2Z"/></svg>
+            </span>Clean
+          </li>
+          <li><span class="note-chip" aria-hidden="true"></span>Note</li>
+        </ul>
+        <p class="month-summary" id="month-summary">—</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== Screen 2: Summary ============== -->
+  <section class="screen" id="screen-summary" hidden aria-labelledby="sum-title">
+    <header class="topbar">
+      <img class="brand-icon" src="icons/icon.svg" alt="" width="30" height="30">
+      <div class="topbar-title"><h1 id="sum-title">Summary</h1></div>
+      <span class="icon-btn-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="screen-body">
+      <div class="segmented" id="range-segmented" role="group" aria-label="Summary range">
+        <button type="button" class="seg" data-range="4w" aria-pressed="true">4 weeks</button>
+        <button type="button" class="seg" data-range="3m" aria-pressed="false">3 months</button>
+        <button type="button" class="seg" data-range="1y" aria-pressed="false">Year</button>
+      </div>
+
+      <div class="card chart-card">
+        <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Sugar, simple carb and complex carb days per period"></canvas></div>
+      </div>
+
+      <div class="tiles" id="tiles">
+        <div class="tile">
+          <span class="tile-value" id="tile-sugar">0</span>
+          <span class="tile-label"><span class="dot dot-sugar"></span>Sugar days</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value" id="tile-sugar-streak">0</span>
+          <span class="tile-label">Sugar-free streak</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value" id="tile-simple">0</span>
+          <span class="tile-label"><span class="dot dot-simple"></span>Simple carb days</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value" id="tile-simple-streak">0</span>
+          <span class="tile-label">Simple-carb-free streak</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value" id="tile-complex">0</span>
+          <span class="tile-label"><span class="dot dot-complex"></span>Complex carb days</span>
+        </div>
+        <div class="tile">
+          <span class="tile-value" id="tile-complex-streak">0</span>
+          <span class="tile-label">Complex-carb-free streak</span>
+        </div>
+      </div>
+
+      <div class="card empty-state" id="summary-empty" hidden>
+        <img src="icons/icon.svg" alt="" width="64" height="64">
+        <p>Tap a day on the calendar to log it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== Tab bar ============== -->
+  <nav class="tabbar" aria-label="Main">
+    <button type="button" class="tab is-active" data-tab="calendar" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v12A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-12Z"/>
+        <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 9.5h16M8 3.5v3M16 3.5v3"/>
+        <circle cx="9" cy="13.5" r="1.3" fill="currentColor"/><circle cx="15" cy="13.5" r="1.3" fill="currentColor"/>
+      </svg>
+      <span>Calendar</span>
+    </button>
+    <button type="button" class="tab" data-tab="summary">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 19h16M5 15l4.5-5 3.5 3L19 6"/>
+        <circle cx="9.5" cy="10" r="1.4" fill="currentColor"/><circle cx="19" cy="6" r="1.4" fill="currentColor"/>
+      </svg>
+      <span>Summary</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ============== Bottom sheets ============== -->
+<div class="backdrop" id="backdrop" hidden></div>
+
+<div class="sheet" id="day-sheet" role="dialog" aria-modal="true" aria-labelledby="day-sheet-title" hidden>
+  <div class="sheet-handle" aria-hidden="true"></div>
+  <h2 class="sheet-title" id="day-sheet-title">Day</h2>
+  <p class="sheet-hint" id="day-hint" hidden></p>
+  <div class="toggle-row">
+    <button type="button" class="toggle toggle-sugar" id="toggle-ateSugar" aria-pressed="false">
+      <span class="dot dot-sugar" aria-hidden="true"></span>Sugar
+    </button>
+    <button type="button" class="toggle toggle-simple" id="toggle-ateSimpleCarbs" aria-pressed="false">
+      <span class="dot dot-simple" aria-hidden="true"></span>Simple carbs
+    </button>
+    <button type="button" class="toggle toggle-complex" id="toggle-ateComplexCarbs" aria-pressed="false">
+      <span class="dot dot-complex" aria-hidden="true"></span>Complex carbs
+    </button>
+  </div>
+  <input class="note-input" id="note-input" type="text" maxlength="100" placeholder="Add a note (optional)"
+         autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Note">
+  <p class="note-count"><span id="note-count">0</span>/100</p>
+  <div class="sheet-actions">
+    <button type="button" class="primary-btn" id="btn-save">Save</button>
+    <button type="button" class="ghost-btn danger" id="btn-reset" hidden>Reset to clean</button>
+  </div>
+</div>
+
+<div class="sheet" id="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+  <div class="sheet-handle" aria-hidden="true"></div>
+  <h2 class="sheet-title" id="settings-title">Settings</h2>
+
+  <label class="field">
+    <span class="field-label">Tracking start date</span>
+    <input type="date" id="start-date-input">
+  </label>
+  <p class="field-hint">Days before this date are not counted.</p>
+
+  <div class="sheet-actions stack">
+    <button type="button" class="primary-btn" id="btn-save-settings">Save</button>
+    <button type="button" class="ghost-btn" id="btn-export">Export data</button>
+    <button type="button" class="ghost-btn" id="btn-import">Import data</button>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+  </div>
+  <p class="field-hint" id="settings-status" role="status"></p>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/chart.umd.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
